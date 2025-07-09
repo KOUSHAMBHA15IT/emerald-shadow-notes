@@ -1,7 +1,8 @@
-
 import React, { useState, useEffect } from 'react';
 import { Search, Plus, Edit3, Trash2, Moon, Sun, Save, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Progress } from '@/components/ui/progress';
+import { useToast } from '@/hooks/use-toast';
 
 interface Note {
   id: string;
@@ -19,6 +20,10 @@ const NotesApp = () => {
   const [editTitle, setEditTitle] = useState('');
   const [editContent, setEditContent] = useState('');
   const [isDarkMode, setIsDarkMode] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [loadingProgress, setLoadingProgress] = useState(0);
+  
+  const { toast } = useToast();
 
   // Load notes from localStorage on component mount
   useEffect(() => {
@@ -38,7 +43,24 @@ const NotesApp = () => {
     localStorage.setItem('notes', JSON.stringify(notes));
   }, [notes]);
 
-  const createNote = () => {
+  const simulateLoading = async () => {
+    setIsLoading(true);
+    setLoadingProgress(0);
+    
+    for (let i = 0; i <= 100; i += 10) {
+      setLoadingProgress(i);
+      await new Promise(resolve => setTimeout(resolve, 50));
+    }
+    
+    setTimeout(() => {
+      setIsLoading(false);
+      setLoadingProgress(0);
+    }, 200);
+  };
+
+  const createNote = async () => {
+    await simulateLoading();
+    
     const newNote: Note = {
       id: Date.now().toString(),
       title: 'New Note',
@@ -53,8 +75,10 @@ const NotesApp = () => {
     setIsEditing(true);
   };
 
-  const saveNote = () => {
+  const saveNote = async () => {
     if (selectedNote) {
+      await simulateLoading();
+      
       const updatedNotes = notes.map(note => 
         note.id === selectedNote.id 
           ? { ...note, title: editTitle || 'Untitled', content: editContent, updatedAt: new Date() }
@@ -63,15 +87,30 @@ const NotesApp = () => {
       setNotes(updatedNotes);
       setSelectedNote({ ...selectedNote, title: editTitle || 'Untitled', content: editContent });
       setIsEditing(false);
+      
+      toast({
+        title: "Note saved",
+        description: "Your note has been saved successfully.",
+      });
     }
   };
 
-  const deleteNote = (noteId: string) => {
+  const deleteNote = async (noteId: string) => {
+    const noteToDelete = notes.find(note => note.id === noteId);
+    
+    await simulateLoading();
+    
     setNotes(notes.filter(note => note.id !== noteId));
     if (selectedNote?.id === noteId) {
       setSelectedNote(null);
       setIsEditing(false);
     }
+    
+    toast({
+      title: "Note deleted",
+      description: `"${noteToDelete?.title || 'Untitled'}" has been deleted successfully.`,
+      variant: "destructive",
+    });
   };
 
   const selectNote = (note: Note) => {
@@ -112,6 +151,35 @@ const NotesApp = () => {
         ? "bg-gradient-to-br from-gray-900 via-gray-800 to-emerald-900" 
         : "bg-gradient-to-br from-gray-50 via-white to-emerald-50"
     )}>
+      {/* Loading Bar */}
+      {isLoading && (
+        <div className="fixed top-0 left-0 right-0 z-50">
+          <Progress 
+            value={loadingProgress} 
+            className={cn(
+              "h-1 rounded-none border-none",
+              isDarkMode 
+                ? "bg-emerald-900/30" 
+                : "bg-emerald-100/30"
+            )}
+          />
+          <div 
+            className={cn(
+              "absolute top-0 left-0 h-1 rounded-none transition-all duration-100 shadow-lg",
+              isDarkMode
+                ? "bg-emerald-400 shadow-emerald-400/50"
+                : "bg-emerald-600 shadow-emerald-600/50"
+            )}
+            style={{ 
+              width: `${loadingProgress}%`,
+              boxShadow: isDarkMode 
+                ? '0 0 20px rgba(52, 211, 153, 0.6), 0 0 40px rgba(52, 211, 153, 0.4)' 
+                : '0 0 20px rgba(5, 150, 105, 0.6), 0 0 40px rgba(5, 150, 105, 0.4)'
+            }}
+          />
+        </div>
+      )}
+
       <div className="flex h-screen">
         {/* Sidebar */}
         <div className={cn(
@@ -148,8 +216,9 @@ const NotesApp = () => {
                 </button>
                 <button
                   onClick={createNote}
+                  disabled={isLoading}
                   className={cn(
-                    "p-2 rounded-lg backdrop-blur-sm transition-all duration-200 hover:scale-105",
+                    "p-2 rounded-lg backdrop-blur-sm transition-all duration-200 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed",
                     isDarkMode
                       ? "bg-emerald-600/20 hover:bg-emerald-500/30 text-emerald-200"
                       : "bg-emerald-500/20 hover:bg-emerald-600/30 text-emerald-800"
@@ -234,8 +303,9 @@ const NotesApp = () => {
                           e.stopPropagation();
                           deleteNote(note.id);
                         }}
+                        disabled={isLoading}
                         className={cn(
-                          "p-1 rounded opacity-0 group-hover:opacity-100 transition-all duration-200 hover:scale-110",
+                          "p-1 rounded opacity-0 group-hover:opacity-100 transition-all duration-200 hover:scale-110 disabled:opacity-50",
                           isDarkMode
                             ? "text-red-400 hover:text-red-300"
                             : "text-red-600 hover:text-red-500"
@@ -295,8 +365,9 @@ const NotesApp = () => {
                       <>
                         <button
                           onClick={saveNote}
+                          disabled={isLoading}
                           className={cn(
-                            "p-2 rounded-lg backdrop-blur-sm transition-all duration-200 hover:scale-105",
+                            "p-2 rounded-lg backdrop-blur-sm transition-all duration-200 hover:scale-105 disabled:opacity-50",
                             isDarkMode
                               ? "bg-emerald-600/20 hover:bg-emerald-500/30 text-emerald-200"
                               : "bg-emerald-500/20 hover:bg-emerald-600/30 text-emerald-800"
@@ -306,8 +377,9 @@ const NotesApp = () => {
                         </button>
                         <button
                           onClick={cancelEditing}
+                          disabled={isLoading}
                           className={cn(
-                            "p-2 rounded-lg backdrop-blur-sm transition-all duration-200 hover:scale-105",
+                            "p-2 rounded-lg backdrop-blur-sm transition-all duration-200 hover:scale-105 disabled:opacity-50",
                             isDarkMode
                               ? "bg-red-600/20 hover:bg-red-500/30 text-red-300"
                               : "bg-red-500/20 hover:bg-red-600/30 text-red-700"
@@ -319,8 +391,9 @@ const NotesApp = () => {
                     ) : (
                       <button
                         onClick={startEditing}
+                        disabled={isLoading}
                         className={cn(
-                          "p-2 rounded-lg backdrop-blur-sm transition-all duration-200 hover:scale-105",
+                          "p-2 rounded-lg backdrop-blur-sm transition-all duration-200 hover:scale-105 disabled:opacity-50",
                           isDarkMode
                             ? "bg-emerald-600/20 hover:bg-emerald-500/30 text-emerald-200"
                             : "bg-emerald-500/20 hover:bg-emerald-600/30 text-emerald-800"
